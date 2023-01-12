@@ -323,3 +323,58 @@ tfidf_mnb.fit(tfidf_train.A,y_train)
 predict_tfidf = tfidf_mnb.predict(tfidf_test.A)
 accuracy_tfidf = accuracy_score(y_test,predict_tfidf)*100
 accuracy_tfidf
+
+## Root Cause Analysis
+
+#creating dataframe of negative reviews
+rc_df = final_df[final_df["Target"]==1]
+rc_df
+
+from numpy.linalg import norm
+
+def cosine_distance(vect1,vect2):
+    distance = (np.dot(vect1,vect2))/(norm(vect1)*norm(vect2))
+    return distance
+
+def yake_extractor(data):
+    key_extractor = yake.KeywordExtractor()
+    keywords = key_extractor.extract_keywords(data)
+    keyword_list = []
+    for kw in keywords:
+        keyword_list.append(kw[0])
+    return keyword_list
+keywords = rc_df.translated_reviews.apply(yake_extractor)
+all_keywords = []
+for kw in keywords:
+    all_keywords.extend(kw)
+
+final_keyphrases = [kw for kw in all_keywords if (len(kw.split())>1)]#removing single words
+
+def vectorizer(list_of_docs,model):
+    feature = []
+    for rew in list_of_docs:
+        tokens = rew.split() #####
+        zero_vector = np.zeros(model.vector_size)
+        vectors = []
+        for word in tokens: ####
+            if word in model.wv:
+                try:
+                    vectors.append(model.wv[word])
+                except KeyError:
+                    continue
+        if vectors:
+            vectors = np.asarray(vectors)
+            avg_vec = vectors.mean(axis=0)
+            feature.append(avg_vec)
+        else:
+            feature.append(zero_vector)
+    return feature
+
+dict1 = {}
+for index,kw in enumerate(final_keyphrases):
+    for kw2 in final_keyphrases:
+        vect1,vect2 = vectorizer([kw,kw2],word_2vec_model)
+        distance = cosine_distance(vect1,vect2)
+        if distance > 0.80:
+            dict1[index] = [kw,kw2]
+print(dict1)
